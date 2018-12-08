@@ -1,0 +1,450 @@
+#Date Started: 11/13/18
+#Last Edited: 12/5/18
+
+library(raster)
+library(rgdal)
+library(sp)
+library(RColorBrewer)
+library(mapmisc)
+library(gdata)
+
+#Reading in data
+fall <- read.csv("Data/FallDOC.csv", header = T)
+summer <- read.csv("Data/SummerDOC.csv", header = T)
+
+#Mainstem only
+mainstem.summer <- summer[-grep(c("1A|2A|3A|4A|5A"), summer$Watershed.ID),]
+mainstem.fall <- fall[-grep(c("1A|2A|3A|4A|5A"), fall$Watershed.ID),]
+
+#Tributaries only
+trib.summer <- summer[grep(c("1A|2A|3A|4A|5A"), summer$Watershed.ID),]
+trib.fall <- fall[grep(c("1A|2A|3A|4A|5A"), fall$Watershed.ID),]
+
+
+# Plot raw data in each watershed -----------------------------------------
+
+#Plot function
+plot.raw <- function(w, file, colors, title) {
+  for (i in 1:length(w)){
+  all <- file[file$Watershed == w[i],]
+  all$Watershed.ID <- factor(all$Watershed.ID)
+  max <- as.numeric(max(file$DOC..mg.L)+1)
+  for (j in 1:3) {
+    a <- all[all$Visit == j,]
+    dis <- discharge[discharge$V1 == w[i],]
+    if (j >= 2) {
+      barplot(a$DOC..mg.L., 
+              names.arg = a$Watershed.ID, 
+              ylim = c(0,max), 
+              col = colors[i], 
+              axisnames = F,
+              axes = F)
+      mtext(side = 3, outer = F, dis[1,j+1], line = -0.5, adj = 0.98, padj = 1.1, cex = 1)
+      box(col="gray80")
+    }
+    else {
+      axes <- c(seq(from = 0, to = max, by = 1))
+      barplot(a$DOC..mg.L., 
+              names.arg = a$Watershed.ID, 
+              ylim = c(0,max(file$DOC..mg.L)+1), 
+              col = colors[i], 
+              axisnames = F,
+              cex.axis = 0.8,
+              yaxt = 'n')
+      axis(side=2, at= axes, 
+           lab=axes, las=1)
+      mtext(side = 3, outer = F, line = -0.5, w[i], cex = 1.1, adj = 0.02, padj = 1.1)
+      mtext(side = 3, outer = F, dis[1,j+1], line = -0.5, adj = 0.98, padj = 1.1, cex = 1)
+      box(col="gray80")
+    }
+    if (w[i] == "Da") {
+      mtext(side = 1, outer = F, line = 0.5, j, cex = 0.7)
+      #mtext(side = 1, outer = F, line = 1, expression("Outlet" %->% "Headwaters"), cex = 1)
+    }
+    }
+  }
+  par(xpd = T)
+  mtext(side = 2, outer = T, line = 2, expression("DOC" ~~ frac(mg, L)), cex = 1)
+  mtext(side = 1, outer = T, line = 1.2, "Visit Number", cex = 1)
+  title(main = title, outer = T, cex.main = 2)
+}
+
+#Plot summer mainstem
+library(RColorBrewer)
+
+#Add discharge values
+discharge <- matrix(data = c("Aa", 0.019, 0.038,0.076, "Ba", 0.012, 0.036, 0.033, "Ca", 0.119, 0.110, 0.183, "Da",0.043, 0.042, 0.051), nrow = 4, ncol = 4, byrow = T)
+discharge <- as.data.frame(discharge)
+
+summercolor <- brewer.pal(4, "Reds")
+par(mfrow = c(4,3), oma = c(3,6,3,1), mai = c(0.1,0.1,0.1,0))
+plot.raw(w = c("Aa", "Ba", "Ca", "Da"), mainstem.summer, colors = summercolor, title = "Summer Mainstem")
+
+#Plot fall mainstem
+fallcolor <- brewer.pal(4, "Blues")
+par(mfrow = c(4,3), oma = c(3,6,3,1), mai = c(0.1,0.1,0.1,0))
+plot.raw(w = c("Aa", "Ba", "Ca", "Da"), mainstem.fall, colors = fallcolor, title = "Fall Mainstem")
+
+#Plot summer tributaries
+par(mfrow = c(3,3), oma = c(3,6,3,1), mai = c(0.1,0.1,0.1,0))
+plot.raw(w = c("Aa", "Ba", "Da"), trib.summer, colors = summercolor, title = "Summer Tributaries")
+
+#Plot fall tributaries
+par(mfrow = c(3,3), oma = c(3,6,3,1), mai = c(0.1,0.1,0.1,0))
+plot.raw(w = c("Aa", "Ba", "Da"), trib.fall, colors = fallcolor, title = "Fall Tributaries")
+
+# Overlay Plots Function --------------------------------------------------
+
+plot.overlay <- function(w, file1, file2, colors, title) {
+  
+  for (i in 1:length(w)){
+    all1 <- file1[file1$Watershed == w[i],]
+    all1$Watershed.ID <- factor(all1$Watershed.ID)
+    
+    all2 <- file2[file2$Watershed == w[i],]
+    all2$Watershed.ID <- factor(all2$Watershed.ID)
+    
+    label <- as.character(w[i])
+    
+    for (j in 1:3) {
+      a <- all1[all1$Visit == j,]
+      dis <- discharge[discharge$V1 == w[i],]
+      if (j >= 2) {
+        diff <- a$DOC..mg.L. - all2$Mean.DOC
+        barplot(diff, 
+                names.arg = NULL, 
+                col = colors[i*2], 
+                ylim = c(-2, 8),
+                axes = F)
+        abline(h = 0, lty = 1)
+        mtext(side = 3, outer = F, dis[1,j+1], line = -0.5, adj = 0.98, padj = 1.1, cex = 0.7)
+        box(col="gray80")
+        }
+      else {
+        diff <- a$DOC..mg.L. - all2$Mean.DOC
+        barplot(diff, 
+              names.arg = NULL, 
+              col = colors[i*2], 
+              ylim = c(-2, 8),
+              ylab = w[i])
+        abline(h = 0, lty = 1)
+        mtext(side = 3, outer = F, line = -0.5, w[i], cex = 1.1, adj = 0.02, padj = 1.1)
+        mtext(side = 3, outer = F, dis[1,j+1], line = -0.5, adj = 0.98, padj = 1.1, cex = 0.7)
+        box(col="gray80")
+        }
+      }
+  }
+  par(xpd = T)
+  mtext(side = 2, outer = T, line = 2, expression("DOC" ~~ frac(mg, L)), cex = 1)
+  title(main = title, outer = T, cex.main = 2)
+  #par(fig = c(0, 1, 0, 1), oma = c(0, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+  #plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+  #legend(x = "bottom", inset = c(0,0), bty = 'n', legend = c("Fall", "Summer Average"), col = c(colors[8], colors[2]), fill = c(colors[8], colors[2]), cex = 2, horiz = T, x.intersp = 0.6, text.width = c(0.25,0.25,0.25))
+}
+
+# Mainstem Overlay --------------------------------------------------------
+
+#Calculate summer average
+watersheds <- as.factor(unique(mainstem.fall$Watershed.ID))
+means <- data.frame()
+for (i in 1:length(watersheds)) {
+  a <- mainstem.summer[mainstem.summer$Watershed.ID == as.character(watersheds[i]),]
+  mean <- data.frame(unique(a$Watershed), watersheds[i], mean(a$DOC..mg.L.), a$Order[1])
+  means <- rbind(means, mean)
+}
+colnames(means) <- c("Watershed", "Watershed.ID", "Mean.DOC", "Order")
+
+#Add discharge values
+discharge <- matrix(data = c("Aa", 0.088, 0.043,0.239, "Ba",0.117, "?", 0.937, "Ca", 0.177, 0.133, 0.135, "Da",0.030, 0.029, 0.276), nrow = 4, ncol = 4, byrow = T)
+discharge <- as.data.frame(discharge)
+
+#Plot
+col <- brewer.pal(8,"Blues")
+dev.size("in")
+pdf("Plots/MainstemOverlay.pdf", width = 7.031250, height = 5.052083)
+par(mfrow = c(4,3), oma = c(1,6,3,1), mai = c(0.1,0.1,0.1,0))
+plot.overlay(w = c("Aa", "Ba", "Ca", "Da"), file1 = mainstem.fall, file2 = means, colors = col, title = "Mainstem DOC Difference")
+dev.off()
+
+# Tributary Overlay -------------------------------------------------------
+
+#Calculate summer average
+watersheds <- as.factor(unique(trib.summer$Watershed.ID))
+means <- data.frame()
+for (i in 1:length(watersheds)) {
+  a <- trib.summer[trib.summer$Watershed.ID == as.character(watersheds[i]),]
+  mean <- data.frame(unique(a$Watershed), watersheds[i], mean(a$DOC..mg.L.), a$Order[1])
+  means <- rbind(means, mean)
+}
+colnames(means) <- c("Watershed", "Watershed.ID", "Mean.DOC", "Order")
+
+#Add discharge values
+discharge <- matrix(data = c("Aa", 0.088, 0.043,0.239, "Ba",0.117, "?", 0.937, "Ca", 0.177, 0.133, 0.135, "Da",0.030, 0.029, 0.276), nrow = 4, ncol = 4, byrow = T)
+discharge <- as.data.frame(discharge)
+
+#Plot
+col <- brewer.pal(10,"RdBu")
+pdf("Plots/TributaryOverlay.pdf", width = 7.031250, height = 5.052083)
+par(mfrow = c(3,3), oma = c(4,6,3,1), mai = c(0.1,0.1,0.1,0))
+plot.overlay(w = c("Aa", "Ba", "Da"), file1 = trib.fall, means, colors = col, title = "Tributaries")
+dev.off()
+
+# Plot Tribs on Map -----------------------------------------------------
+
+#Trib data
+map.trib.summer <- summer[summer$Type == "T",]
+map.trib.fall <- fall[fall$Type == "T",]
+areas <- read.csv("Data/SubwatershedAreas.csv", header = T)
+discharge <- read.csv("Data/Discharge.csv", header = T)
+
+#Mapping function
+map.tribs <- function(file, w, color, title, d) {
+  all <- file[file$Watershed == w,]
+  watersheds <- as.factor(unique(all$Watershed.ID))
+  area <- areas[areas$Watershed == w, "Area"]
+  dis <- d[d$Watershed == w,]
+  dis <- dis[order(dis$Discharge),]
+  trib.names <- substr(watersheds, start = 1, stop = 4)
+  colors <- brewer.pal(length(trib.names), color)
+  
+  rivers <- readOGR(dsn = "Data/GIS", layer = paste0(w, "Rivers"))
+  plot(rivers, col = "blue", lwd = 0.25)
+  for (j in 1:length(trib.names)){
+    transp.color <- adjustcolor(colors[j], alpha = 0.5)
+    sub <- readOGR(dsn = "Data/GIS", layer = trib.names[j])
+    plot(sub, add = T, border = colors[j], lwd = 2.5, col = transp.color)
+    text(sub, j, halo = T, cex = 1.1, adj = c(0,0.2))
+    text(sub, area[j], halo = T, cex = 1.3, pos = 1, hw = 0.2)
+  }
+  shapefile <- readOGR(dsn = "Data/GIS", layer = w)
+  plot(shapefile, add = T)
+  
+  if (w == "Aa"){
+    scaleBar(shapefile, pos = "topright", cex = 0.8, pt.cex = 1.1, seg.len = 10, outer = T)
+  }
+  if (w == "Da"){
+    scaleBar(shapefile, pos = "bottomright", cex = 0.8, pt.cex = 1.1, seg.len = 10, outer = T)
+  }
+  if (w == "Ba" | w == "Ca") {
+    scaleBar(shapefile, pos = "topright", cex = 0.8, pt.cex = 1.1, seg.len = 5, outer = T)  
+  }
+  
+  for (i in 1:length(watersheds)){
+    
+    if (i <= 2){
+    subset <- all[all$Watershed.ID == watersheds[i],]
+    subset <- subset[match(dis$Visit, subset$Visit..),]
+    barplot(subset$DOC..mg.L.,
+            names.arg = NULL, 
+            col = colors[i], 
+            ylim = c(0, max(all$DOC..mg.L.) + 1),
+            axes = T)
+    points(x = 0.325, y = 5, col = colors[i], pch = 21, bg = colors[i], cex = area[i]/50)
+    mtext(side = 3, outer = F, line = -0.5, 
+          substr(watersheds[i], start = 4, stop = 4), 
+          cex = 0.6, adj = 0.15, padj = 0.95)
+    }
+    else {
+      subset <- all[all$Watershed.ID == watersheds[i],]
+      subset <- subset[match(dis$Visit, subset$Visit..),]
+      barplot(subset$DOC..mg.L.,
+              names.arg = NULL, 
+              col = colors[i], 
+              ylim = c(0, max(all$DOC..mg.L.) + 1),
+              axes = T)
+      points(x = 0.325, y = 5, col = colors[i], pch = 21, bg = colors[i], cex = area[i]/50)
+      mtext(side = 3, outer = F, line = -0.5, 
+            substr(watersheds[i], start = 4, stop = 4), 
+            cex = 0.6, adj = 0.15, padj = 0.95)
+      displot <- data.frame(c(0.7,1.9,3.12), c(-0.6,-0.6,-0.6))
+      par(xpd = T)
+      points(x = displot[,1], y = displot[,2], cex = dis$Discharge * 15, pch = 21, col = "#fdae61", bg = "#fdae61")
+    }
+  }
+  par(xpd = T)
+  mtext(side = 2, outer = T, line = 2, "DOC mg/L", adj = 0.5, cex = 0.8)
+  mtext(side = 1, outer = T, line = 4, expression("Outlet Discharge" ~~ (m^3/"s")), cex = 0.8)
+  #title(main = title, outer = T, cex.main = 2)
+  par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 2.5, 0, 0), new = TRUE)
+  plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+  legend(x = "bottom", inset = c(0,0), 
+         bty = 'n', legend = c(dis$Discharge[1], dis$Discharge[2], dis$Discharge[3]), 
+         col = "#fdae61", pt.bg = "#fdae61", cex = 1.5, horiz = T, pt.cex = c(dis$Discharge[1]*15, dis$Discharge[2]*15, dis$Discharge[3]*15), 
+         pch = 21, x.intersp = 1)
+}
+
+#Making maps
+windows(width = 7.031250, height = 5.052083)
+pdf('Plots/AFallTrib.pdf', width = 7.031250, height = 5.052083)
+mat <- matrix(c(2,1,1,1,
+                3,1,1,1,
+                4,5,6,7),
+              nrow = 3, ncol =  4, byrow = T)
+layout(mat=mat)
+par(oma = c(5,4,1,1), mai = c(0.3,0.2,0.1,0.1))
+map.tribs(file = map.trib.fall, w = "Aa", color = "Blues", title = "Watershed A Fall Tributary DOC Concentrations", d = discharge[discharge$Season == "F",])
+dev.off()
+
+pdf('Plots/ASummerTrib.pdf', width = 7.031250, height = 5.052083)
+mat <- matrix(c(2,1,1,1,
+                3,1,1,1,
+                4,5,6,7),
+              nrow = 3, ncol =  4, byrow = T)
+layout(mat=mat)
+par(oma = c(5,4,3,1), mai = c(0.2,0.2,0,0.1))
+map.tribs(map.trib.summer, "Aa", "Reds", "Watershed A Summer Tributary DOC Concentrations", d = discharge[discharge$Season == "S",])
+dev.off()
+
+pdf('Plots/BFallTrib.pdf', width = 7.031250, height = 5.052083)
+mat <- matrix(c(2,1,1,1,
+                3,1,1,1,
+                4,5,6,7),
+              nrow = 3, ncol =  4, byrow = T)
+layout(mat=mat)
+par(oma = c(5,4,3,1), mai = c(0.2,0.2,0,0.1))
+map.tribs(map.trib.fall, "Ba", "Blues", "Watershed B Fall Tributary DOC Concentrations", d = discharge[discharge$Season == "F",])
+dev.off()
+
+pdf('Plots/BSummerTrib.pdf', width = 7.031250, height = 5.052083)
+mat <- matrix(c(2,1,1,1,
+                3,1,1,1,
+                4,5,6,7),
+              nrow = 3, ncol =  4, byrow = T)
+layout(mat=mat)
+par(oma = c(5,4,3,1), mai = c(0.2,0.2,0,0.1))
+map.tribs(map.trib.summer, "Ba", "Reds", "Watershed B Summer Tributary DOC Concentrations", d = discharge[discharge$Season == "S",])
+dev.off()
+
+pdf('Plots/DFallTrib.pdf', width = 7.031250, height = 5.052083)
+mat <- matrix(c(2,1,1,
+                3,1,1,
+                4,5,6),
+              nrow = 3, ncol =  3, byrow = T)
+layout(mat=mat)
+par(oma = c(5,4,3,1), mai = c(0.3,0.2,0,0.1))
+map.tribs(map.trib.fall, "Da", "Blues", "Watershed D Fall Tributary DOC Concentrations", d = discharge[discharge$Season == "F",])
+dev.off()
+
+pdf('Plots/DSummerTrib.pdf', width = 7.031250, height = 5.052083)
+mat <- matrix(c(2,1,1,
+                3,1,1,
+                4,5,6),
+              nrow = 3, ncol =  3, byrow = T)
+layout(mat=mat)
+par(oma = c(5,4,3,1), mai = c(0.3,0.2,0,0.1))
+map.tribs(map.trib.summer, "Da", "Reds", "Watershed D Summer Tributary DOC Concentrations", d = discharge[discharge$Season == "S",])
+dev.off()
+
+# Map Outlet Export --------------------------------------------------------------
+
+f <- fall[grep("00", fall$Watershed.ID),]
+f$Season <- "F"
+s <- summer[grep("00", summer$Watershed.ID),]
+s$Season <- "S"
+discharge <- read.csv("Data/Discharge.csv", header = T)
+
+all <- rbind(f, s)
+export <- data.frame()
+    for (j in 1:nrow(all)){
+      doc <- all[j,]
+      dis <- discharge[discharge$Watershed == doc$Watershed, ]
+      dis <- dis[dis$Season == doc$Season,]
+      dis <- dis[dis$Visit == doc$Visit,]
+      exp <- doc$DOC..mg.L.*dis$Discharge
+      export[j,1] <- as.character(doc$Watershed)
+      export[j,2] <- as.character(doc$Date.Collected)
+      export[j,3] <- doc$Visit..
+      export[j,4] <- doc$Season
+      export[j,5] <- exp
+    }
+
+colnames(export) <- c("Watershed", "Date.Collected", "Visit", "Season", "Export")
+barplot(export$Export, names.arg = export$Date.Collected)
+
+map.outlet.discharge <- function(w, colors, area) {
+  
+  #Plot the maps
+  for (i in 1:length(w)){
+  shapefile <- readOGR(dsn = "Data/GIS", layer = w[i])
+  plot(shapefile)
+  mtext(side = 1, outer = F, line = -0.5, paste0(substr(w[i], start = 1, stop = 1), ": ", area[i]), cex = 0.9, adj = 0.05, padj = 1)
+  }
+  
+  #Plot the bar graphs
+  
+  for (j in 1:length(w)){
+    dis <- discharge[discharge$Watershed == w[j],]
+    dis <- dis[order(dis$Season, decreasing = T),]
+    data <- export[export$Watershed == w[j],]
+    data <- data[order(data$Season, decreasing = T),]
+    f <- data
+    f[f$Season == "S", "Export"] <- 0
+    barplot(f$Export,
+            names.arg = NULL,
+            ylim = c(0, max(data$Export)+0.1),
+            col = colors[8])
+    
+    if (j == 1){
+      displot <- data.frame(c(0.7,1.9,3.1,4.35,5.55,6.75), c(-0.015,-0.015,-0.015,-0.015,-0.015,-0.015))
+      par(xpd = T)
+      points(x = displot[,1], y = displot[,2], cex = dis$Discharge*10, pch = 21, col = "#fdae61", bg = "#fdae61")
+    }
+   
+    if (j == 2){
+      displot <- data.frame(c(0.7,1.9,3.1,4.35,5.55,6.75), c(-0.1,-0.1,-0.1,-0.1,-0.1,-0.1))
+      par(xpd = T)
+      points(x = displot[,1], y = displot[,2], cex = c(dis$Discharge[1:5]*10, 1.5), pch = c(rep(21,5), 8), col = "#fdae61", bg = "#fdae61")
+    }
+     
+    if (j == 3){
+      displot <- data.frame(c(0.7,1.9,3.1,4.35,5.55,6.75), c(-0.02,-0.02,-0.02,-0.02,-0.02,-0.02))
+      par(xpd = T)
+      points(x = displot[,1], y = displot[,2], cex = dis$Discharge*10, pch = 21, col = "#fdae61", bg = "#fdae61")
+    }
+    
+    
+    if (j == 4){
+      displot <- data.frame(c(0.7,1.9,3.1,4.35,5.55,6.75), c(-0.02,-0.02,-0.02,-0.02,-0.02,-0.02))
+      par(xpd = T)
+      points(x = displot[,1], y = displot[,2], cex = dis$Discharge*10, pch = 21, col = "#fdae61", bg = "#fdae61")
+    }
+    
+    s <- data
+    s[s$Season == "F", "Export"] <- 0
+    par(new = T)
+    barplot(s$Export, 
+            names.arg = NULL, 
+            col = colors[2],
+            ylim = c(0, max(data$Export)+0.1),
+            axes = F, 
+            axisnames = F)
+    #mtext(side = 3, outer = F, line = -0.5, paste0(w[j], ": ", area[j]), cex = 0.9, adj = 0.05, padj = 1)
+    box(col="gray80")
+    }
+  mtext(side = 1, outer = T, line = 4, expression("Outlet Discharge" ~~ (m^3/"s")), cex = 0.8)
+  par(xpd = T)
+  mtext(side = 2, outer = T, line = 2, expression("DOC Export" ~~ frac("mg" ~~ "s", "m"^3 ~~ "L")), cex = 1, adj = 0.2)
+  title(main = expression("Summer" * phantom(" and Fall DOC Export)")), col.main = colors[2], outer = T, cex.main = 2.5, line = -0.1)
+  title(main = expression(phantom("Summer ") * "and" * phantom(" Fall DOC Export")), col.main = "black", outer = T, cex.main = 2.5, line = -0.1)
+  title(main = expression(phantom("Summer and") * " Fall" * phantom(" DOC Export")), col.main = colors[8], outer = T, cex.main = 2.5, line = -0.1)
+  title(main = expression(phantom("Summer and Fall") * " DOC Export"), col.main = "black", outer = T, cex.main = 2.5, line = -0.1)
+  
+  par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 2.5, 0, 0), new = TRUE)
+  plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+  legend(x = "bottom", inset = c(0,0), 
+         bty = 'n', legend = c(0.025, 0.075, 0.125, 0.175, 0.225, 0.937), 
+         col = "#fdae61", pt.bg = "#fdae61", cex = 1.5, horiz = T, pt.cex = c(0.25, 0.75, 1.25, 1.75, 2.25, 1.5), 
+         pch = c(21,21,21,21,21,8), x.intersp = 1.3)
+}
+
+col <- brewer.pal(10,"RdBu")
+a <- c(874, 1507, 1495, 561)
+windows(width = 8, height = 6)
+pdf("Plots/DOCExport.pdf", width = 8, height = 6)
+mat <- matrix(c(1,2,3,4,
+                5,6,7,8,
+                5,6,7,8), ncol = 4, nrow = 3, byrow = T)
+layout(mat = mat)
+par(oma = c(5,6,2.5,1), mar = c(0.5,0.5,0.2,0.5), mai = c(0.2,0.2,0.1,0.1))
+map.outlet.discharge(w = c("Aa", "Ba", "Ca", "Da"), colors = col, area = a)
+dev.off()
