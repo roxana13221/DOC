@@ -1,5 +1,5 @@
 #Date Started: 11/13/18
-#Last Edited: 12/5/18
+#Last Edited: 12/9/18
 
 library(raster)
 library(rgdal)
@@ -231,20 +231,6 @@ map.tribs <- function(file, w, color, title, d) {
   
   for (i in 1:length(watersheds)){
     
-    if (i <= 2){
-    subset <- all[all$Watershed.ID == watersheds[i],]
-    subset <- subset[match(dis$Visit, subset$Visit..),]
-    barplot(subset$DOC..mg.L.,
-            names.arg = NULL, 
-            col = colors[i], 
-            ylim = c(0, max(all$DOC..mg.L.) + 1),
-            axes = T)
-    points(x = 0.325, y = 5, col = colors[i], pch = 21, bg = colors[i], cex = area[i]/50)
-    mtext(side = 3, outer = F, line = -0.5, 
-          substr(watersheds[i], start = 4, stop = 4), 
-          cex = 0.6, adj = 0.15, padj = 0.95)
-    }
-    else {
       subset <- all[all$Watershed.ID == watersheds[i],]
       subset <- subset[match(dis$Visit, subset$Visit..),]
       barplot(subset$DOC..mg.L.,
@@ -259,7 +245,6 @@ map.tribs <- function(file, w, color, title, d) {
       displot <- data.frame(c(0.7,1.9,3.12), c(-0.6,-0.6,-0.6))
       par(xpd = T)
       points(x = displot[,1], y = displot[,2], cex = dis$Discharge * 15, pch = 21, col = "#fdae61", bg = "#fdae61")
-    }
   }
   par(xpd = T)
   mtext(side = 2, outer = T, line = 2, "DOC mg/L", adj = 0.5, cex = 0.8)
@@ -363,14 +348,17 @@ barplot(export$Export, names.arg = export$Date.Collected)
 
 map.outlet.discharge <- function(w, colors, area) {
   
+  s.transp <- adjustcolor(colors[2], alpha = 0.7)
+  f.transp <- adjustcolor(colors[8], alpha = 0.7)
+  
   #Plot the maps
   for (i in 1:length(w)){
   shapefile <- readOGR(dsn = "Data/GIS", layer = w[i])
   plot(shapefile)
-  mtext(side = 1, outer = F, line = -0.5, paste0(substr(w[i], start = 1, stop = 1), ": ", area[i]), cex = 0.9, adj = 0.05, padj = 1)
+  mtext(side = 1, outer = F, line = -0.5, paste0(substr(w[i], start = 1, stop = 1), ": ", area[i]), cex = 0.8, adj = 0.05, padj = 1)
   }
   
-  #Plot the bar graphs
+  #Plot the plots
   
   for (j in 1:length(w)){
     dis <- discharge[discharge$Watershed == w[j],]
@@ -378,73 +366,37 @@ map.outlet.discharge <- function(w, colors, area) {
     data <- export[export$Watershed == w[j],]
     data <- data[order(data$Season, decreasing = T),]
     f <- data
-    f[f$Season == "S", "Export"] <- 0
-    barplot(f$Export,
-            names.arg = NULL,
-            ylim = c(0, max(data$Export)+0.1),
-            col = colors[8])
-    
-    if (j == 1){
-      displot <- data.frame(c(0.7,1.9,3.1,4.35,5.55,6.75), c(-0.015,-0.015,-0.015,-0.015,-0.015,-0.015))
-      par(xpd = T)
-      points(x = displot[,1], y = displot[,2], cex = dis$Discharge*10, pch = 21, col = "#fdae61", bg = "#fdae61")
-    }
-   
-    if (j == 2){
-      displot <- data.frame(c(0.7,1.9,3.1,4.35,5.55,6.75), c(-0.1,-0.1,-0.1,-0.1,-0.1,-0.1))
-      par(xpd = T)
-      points(x = displot[,1], y = displot[,2], cex = c(dis$Discharge[1:5]*10, 1.5), pch = c(rep(21,5), 8), col = "#fdae61", bg = "#fdae61")
-    }
-     
-    if (j == 3){
-      displot <- data.frame(c(0.7,1.9,3.1,4.35,5.55,6.75), c(-0.02,-0.02,-0.02,-0.02,-0.02,-0.02))
-      par(xpd = T)
-      points(x = displot[,1], y = displot[,2], cex = dis$Discharge*10, pch = 21, col = "#fdae61", bg = "#fdae61")
-    }
-    
-    
-    if (j == 4){
-      displot <- data.frame(c(0.7,1.9,3.1,4.35,5.55,6.75), c(-0.02,-0.02,-0.02,-0.02,-0.02,-0.02))
-      par(xpd = T)
-      points(x = displot[,1], y = displot[,2], cex = dis$Discharge*10, pch = 21, col = "#fdae61", bg = "#fdae61")
-    }
-    
-    s <- data
-    s[s$Season == "F", "Export"] <- 0
-    par(new = T)
-    barplot(s$Export, 
-            names.arg = NULL, 
-            col = colors[2],
-            ylim = c(0, max(data$Export)+0.1),
-            axes = F, 
-            axisnames = F)
-    #mtext(side = 3, outer = F, line = -0.5, paste0(w[j], ": ", area[j]), cex = 0.9, adj = 0.05, padj = 1)
-    box(col="gray80")
-    }
-  mtext(side = 1, outer = T, line = 4, expression("Outlet Discharge" ~~ (m^3/"s")), cex = 0.8)
-  par(xpd = T)
-  mtext(side = 2, outer = T, line = 2, expression("DOC Export" ~~ frac("mg" ~~ "s", "m"^3 ~~ "L")), cex = 1, adj = 0.2)
-  title(main = expression("Summer" * phantom(" and Fall DOC Export)")), col.main = colors[2], outer = T, cex.main = 2.5, line = -0.1)
-  title(main = expression(phantom("Summer ") * "and" * phantom(" Fall DOC Export")), col.main = "black", outer = T, cex.main = 2.5, line = -0.1)
-  title(main = expression(phantom("Summer and") * " Fall" * phantom(" DOC Export")), col.main = colors[8], outer = T, cex.main = 2.5, line = -0.1)
-  title(main = expression(phantom("Summer and Fall") * " DOC Export"), col.main = "black", outer = T, cex.main = 2.5, line = -0.1)
+    plot(x = dis[dis$Season == "F", "Discharge"], y = f[f$Season == "F", "Export"],
+        ylim = c(0, max(data$Export)+0.1),
+        xlim = c(min(dis$Discharge), max(dis$Discharge)),
+        col = f.transp, pch = 20, cex = 3,
+        xlab = NA, ylab = NA)
+    points(x = dis[dis$Season == "S", "Discharge"], y = f[f$Season == "S", "Export"],
+           col = s.transp,
+           pch = 20,
+           cex = 3)
+    #abline(lm(f$Export~dis$Discharge), lty = 3, xpd = F)
   
-  par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 2.5, 0, 0), new = TRUE)
-  plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
-  legend(x = "bottom", inset = c(0,0), 
-         bty = 'n', legend = c(0.025, 0.075, 0.125, 0.175, 0.225, 0.937), 
-         col = "#fdae61", pt.bg = "#fdae61", cex = 1.5, horiz = T, pt.cex = c(0.25, 0.75, 1.25, 1.75, 2.25, 1.5), 
-         pch = c(21,21,21,21,21,8), x.intersp = 1.3)
+  }
+  
+  mtext(side = 1, outer = T, line = 1.5, expression("Outlet Discharge" ~~ (m^3/"s")), cex = 0.8, adj = 0.3)
+  par(xpd = T)
+  mtext(side = 2, outer = T, line = 2, expression("DOC Export" ~~ frac("mg" ~~ "s", "m"^3 ~~ "L")), cex = 0.8, adj = 0.5)
+  title(main = expression("Summer" * phantom(" and Fall DOC Export)")), col.main = colors[2], outer = T, cex.main = 2.3, line = 0.7)
+  title(main = expression(phantom("Summer ") * "and" * phantom(" Fall DOC Export")), col.main = "black", outer = T, cex.main = 2.3, line = 0.7)
+  title(main = expression(phantom("Summer and") * " Fall" * phantom(" DOC Export")), col.main = colors[8], outer = T, cex.main = 2.3, line = 0.7)
+  title(main = expression(phantom("Summer and Fall") * " DOC Export"), col.main = "black", outer = T, cex.main = 2.3, line = 0.7)
 }
 
 col <- brewer.pal(10,"RdBu")
 a <- c(874, 1507, 1495, 561)
-windows(width = 8, height = 6)
-pdf("Plots/DOCExport.pdf", width = 8, height = 6)
-mat <- matrix(c(1,2,3,4,
-                5,6,7,8,
-                5,6,7,8), ncol = 4, nrow = 3, byrow = T)
+windows(width = 6, height = 8)
+pdf("Plots/DOCExportPlots.pdf", width = 6, height = 8)
+mat <- matrix(c(5,5,1,
+                6,6,2,
+                7,7,3,
+                8,8,4), ncol = 3, nrow = 4, byrow = T)
 layout(mat = mat)
-par(oma = c(5,6,2.5,1), mar = c(0.5,0.5,0.2,0.5), mai = c(0.2,0.2,0.1,0.1))
+par(oma = c(3,6,3,1), mar = c(0.5,0.5,0.2,0.5), mai = c(0.2,0.2,0.1,0.1))
 map.outlet.discharge(w = c("Aa", "Ba", "Ca", "Da"), colors = col, area = a)
 dev.off()
